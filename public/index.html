@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SafeInventory Pro - Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>📦 SafeInventory Pro</h1>
+        <p>Estado del Sistema: <span style="color: green;">Conectado a MockCloud</span></p>
+        
+        <table id="inventoryTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Activo</th>
+                    <th>Dueño</th>
+                    <th>Imagen de Evidencia</th>
+                </tr>
+            </thead>
+            <tbody id="inventoryBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>Registrar Nuevo Activo</h3>
+        <input type="text" id="itemName" placeholder="Nombre del equipo">
+        <input type="text" id="ownerName" placeholder="Nombre del dueño">
+        <input type="file" id="imageFile" accept="image/*">
+        <button id="uploadBtn" onclick="uploadItem()">Registrar en Inventario</button>
+    </div>
+
+    <script>
+        function uploadItem() {
+            const item = document.getElementById('itemName').value;
+            const owner = document.getElementById('ownerName').value;
+            const fileInput = document.getElementById('imageFile');
+            const uploadBtn = document.getElementById('uploadBtn');
+
+            if (!item || !owner) {
+                alert('Por favor completa nombre del equipo y dueño.');
+                return;
+            }
+
+            uploadBtn.disabled = true;
+
+            // Si hay archivo, leerlo como base64 y enviarlo
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // e.target.result tiene el prefijo data:...;base64,
+                    const base64 = e.target.result.split(',')[1];
+                    sendUpload({ item, owner, imageBase64: base64 }).finally(() => uploadBtn.disabled = false);
+                };
+                reader.onerror = function() {
+                    alert('Error leyendo el archivo de imagen');
+                    uploadBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            // Si no hay archivo, enviar sin imageBase64 (usa placeholder URL)
+            sendUpload({ item, owner, image: 'https://placehold.co/100x100?text=Nuevo+Equipo' }).finally(() => uploadBtn.disabled = false);
+        }
+
+        function sendUpload(payload) {
+            const body = Object.assign({ id: Date.now() }, payload);
+            return fetch('/api/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message || 'Respuesta recibida');
+                location.reload();
+            })
+            .catch(err => {
+                alert('Error al registrar: ' + (err.message || err));
+            });
+        }
+
+        // Fetch para listar inventario
+        fetch('/api/inventory')
+            .then(res => res.json())
+            .then(data => {
+                const body = document.getElementById('inventoryBody');
+                data.forEach(item => {
+                    body.innerHTML += `
+                        <tr>
+                            <td>${item.id}</td>
+                            <td>${item.item}</td>
+                            <td>${item.owner}</td>
+                            <td><img src="${item.image}" width="50"></td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(err => console.error('Error al obtener inventario:', err));
+    </script>
+</body>
+</html>
